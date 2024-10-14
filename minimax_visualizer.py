@@ -11,34 +11,29 @@ logging.basicConfig(level=logging.DEBUG,  # Set the logging level (DEBUG, INFO, 
 
 # pygame screen's object
 SCREEN_WIDTH = 300
-SCREEN_HEIGHT = 400
+SCREEN_HEIGHT = 370
 SQUARE_SIZE = int(SCREEN_WIDTH / 3)
 GAME_REGION = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_WIDTH)
 PLAYER_FIRST_BUTTON = pygame.Rect(
-    0, SCREEN_WIDTH, SCREEN_WIDTH / 2, (SCREEN_HEIGHT - SCREEN_WIDTH) / 2)
+    0, SCREEN_WIDTH, SCREEN_WIDTH / 2, SCREEN_HEIGHT - SCREEN_WIDTH)
 MACHINE_FIRST_BUTTON = pygame.Rect(
-    SCREEN_WIDTH / 2, SCREEN_WIDTH, SCREEN_WIDTH / 2, (SCREEN_HEIGHT - SCREEN_WIDTH) / 2)
-RESET_BUTTON = pygame.Rect(0, SCREEN_WIDTH + (SCREEN_HEIGHT - SCREEN_WIDTH) / 2,
-                           SCREEN_WIDTH / 2, (SCREEN_HEIGHT - SCREEN_WIDTH) / 2)
-START_BUTTON = pygame.Rect(SCREEN_WIDTH / 2, SCREEN_WIDTH + (SCREEN_HEIGHT -
-                           SCREEN_WIDTH) / 2, SCREEN_WIDTH / 2, (SCREEN_HEIGHT - SCREEN_WIDTH) / 2)
+    SCREEN_WIDTH / 2, SCREEN_WIDTH, SCREEN_WIDTH / 2, SCREEN_HEIGHT - SCREEN_WIDTH)
 
 # Color
 GAME_REGION_C = (255, 255, 255)
-GO_FIRST_BUTTON_C = 'grey'
-GO_FIRST_BUTTON_ACTIVATE_C = 'yellow'
-RESET_BUTTON = 'blue'
-START_BUTTON = 'blue'
 
 # State variable
 machine_turn = False
 game_finished = False
+game_started = False
 has_winner = False
 finished_line_drawn = False
-current_state = State('X', 'O')  # The args are just placeholder
+current_state = State('X', 'O')  # The args are just temporary placeholder
+human_first = False
+machine_first = False
 
 def draw_game_space(screen):
-    global current_state, finished_line_drawn
+    global current_state, finished_line_drawn, game_started, has_winner, game_finished
     font = pygame.font.Font(None, 90)
     pygame.draw.rect(screen, GAME_REGION_C, GAME_REGION)
     for row in range(3):
@@ -57,15 +52,17 @@ def draw_game_space(screen):
                 screen.blit(text, text_rect)
 
     # Draw the finished line if game has win terminal state
-    if has_winner:
+    if game_finished and has_winner and not game_started:
         draw_winning_line(screen)
 
+# Check if the current state is terminal, if terminal reset the game
 def check_terminal():
-    global game_finished, has_winner
+    global game_finished, has_winner, game_started
     # If the current state is terminal, end
     if current_state.is_draw():
         logging.info("WE HAVE A DRAW!!!")
         game_finished = True
+        game_started = False
 
     if current_state.is_win():
         if current_state.just_played == 'O':  # The player
@@ -77,6 +74,7 @@ def check_terminal():
             logging.info("MACHINE WIN!!!")
 
         game_finished = True
+        game_started = False
 
 def machine_play():
     global current_state, machine_turn
@@ -105,7 +103,7 @@ def machine_play():
     current_state = smallest_child
     machine_turn = False
 
-def handle_mouse_click(pos):
+def handle_play_click(pos):
     global game_finished, machine_turn, current_state
     # If this is human turn to play
     if not game_finished and not machine_turn:
@@ -151,9 +149,49 @@ def draw_winning_line(screen):
     # Draw a line (color: red, thickness: 10)
     pygame.draw.line(screen, (255, 0, 0), start_pos, end_pos, 10)
 
+def draw_button(screen):
+    global game_started, game_finished, human_first, machine_first
+    normal_c = (255, 255, 23)
+    faded_c = (165, 165, 165)
+    pressed_c = (9, 255, 0)
+
+    if game_started and not game_finished and human_first:
+        human_button_c = pressed_c
+        machine_button_c = faded_c
+    elif game_started and not game_finished and machine_first:
+        human_button_c = faded_c
+        machine_button_c = pressed_c
+    else:
+        human_button_c = normal_c
+        machine_button_c = normal_c
+
+    # Player button
+    pygame.draw.rect(screen, human_button_c, PLAYER_FIRST_BUTTON)
+    pygame.draw.rect(screen, (0, 0, 0), PLAYER_FIRST_BUTTON, 2)
+    draw_multiline_text(screen, 'PLAYER\nFIRST', PLAYER_FIRST_BUTTON.center)
+
+    pygame.draw.rect(screen, machine_button_c, MACHINE_FIRST_BUTTON)
+    pygame.draw.rect(screen, (0, 0, 0), MACHINE_FIRST_BUTTON, 2)
+    draw_multiline_text(screen, 'MACHINE\nFIRST', MACHINE_FIRST_BUTTON.center)
+
+# CHATGPT CODE
+def draw_multiline_text(screen, text, center):
+    lines = text.split('\n')
+    font = pygame.font.Font(None, 35)  # Adjust the font size as needed
+    total_height = len(lines) * font.get_height()
+
+    # Calculate the starting Y position
+    start_y = center[1] - total_height // 2 + 10
+
+    for i, line in enumerate(lines):
+        rendered_line = font.render(line, True, (0, 0, 9))
+        text_rect = rendered_line.get_rect(
+            center=(center[0], start_y + i * font.get_height()))
+        screen.blit(rendered_line, text_rect)
+
 # main loop
 def run_game():
-    global running, current_state, machine_turn
+    global running, current_state, machine_turn, human_first, machine_first, game_finished, game_started
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     clock = pygame.time.Clock()
@@ -172,10 +210,27 @@ def run_game():
 
             elif event.type == pygame.MOUSEBUTTONDOWN:  # Clicked on a square
                 pos = pygame.mouse.get_pos()
-                handle_mouse_click(pos)
+
+                if game_started:
+                    handle_play_click(pos)
+
+                if PLAYER_FIRST_BUTTON.collidepoint(pos) and not game_started:
+                    human_first = True
+                    game_started = True
+                    game_finished = False
+                    current_state = State('X', 'O')
+                    machine_turn = False
+
+                if MACHINE_FIRST_BUTTON.collidepoint(pos) and not game_started:
+                    machine_first = True
+                    game_started = True
+                    game_finished = False
+                    current_state = State('O', 'X')
+                    machine_turn = True
 
         # Do something
         draw_game_space(screen)
+        draw_button(screen)
 
         # Update
         pygame.display.flip()
@@ -186,11 +241,7 @@ def run_game():
             check_terminal()
 
         # If this is machine turn
-        if machine_turn and not game_finished:
+        if machine_turn and game_started and not game_finished:
             machine_play()
 
     pygame.quit()
-
-
-if __name__ == '__main__':
-    run_game()
