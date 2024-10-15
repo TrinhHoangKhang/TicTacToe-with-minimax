@@ -76,32 +76,26 @@ def check_terminal():
         game_finished = True
         game_started = False
 
-def machine_play():
+def machine_play(use_pruning):
     global current_state, machine_turn
     logging.info("--> Machine turn")
     logging.info("Machine is thinking...")
-    time.sleep(1)
 
     # We guarantee the current_state is not terminal already
     children_state = current_state.get_children()
     smallest_child = children_state[0]
-    smallest_score = smallest_child.minimax()
+    smallest_score = smallest_child.alphabeta(
+    ) if use_pruning else smallest_child.minimax()
     for child in children_state[1:]:
-        if child.minimax() < smallest_score:
+        score = child.alphabeta() if use_pruning else child.minimax()
+        if score < smallest_score:
             smallest_child = child
-            smallest_score = child.minimax()
-
-    # ============ Logging ===========
-    logging.info("Current state is:\n%s", current_state.matrix)
-    logging.info("Children:")
-    for child in children_state:
-        logging.info("Child state:\n%s", child.matrix)
-        logging.info("Minimax: %s", child.minimax())
-    logging.info("Machine choose:\n%s", smallest_child.matrix)
+            smallest_score = score
 
     # Update the current state to that child state
     current_state = smallest_child
     machine_turn = False
+    logging.info("--> Human turn")
 
 def handle_play_click(pos):
     global game_finished, machine_turn, current_state
@@ -111,7 +105,6 @@ def handle_play_click(pos):
             col_clicked = pos[0] // SQUARE_SIZE
             row_clicked = pos[1] // SQUARE_SIZE
             if current_state.matrix[row_clicked, col_clicked] == ' ':
-                logging.info("--> Human turn")
                 next_to_play = current_state.next_to_play
                 just_played = current_state.just_played
                 current_state.matrix[row_clicked,
@@ -190,8 +183,8 @@ def draw_multiline_text(screen, text, center):
         screen.blit(rendered_line, text_rect)
 
 # main loop
-def run_game():
-    global running, current_state, machine_turn, human_first, machine_first, game_finished, game_started
+def run_game(use_pruning=False):
+    global running, current_state, machine_turn, human_first, machine_first, game_finished, game_started, has_winner
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     clock = pygame.time.Clock()
@@ -220,6 +213,7 @@ def run_game():
                     game_finished = False
                     current_state = State('X', 'O')
                     machine_turn = False
+                    has_winner = False
 
                 if MACHINE_FIRST_BUTTON.collidepoint(pos) and not game_started:
                     machine_first = True
@@ -227,6 +221,7 @@ def run_game():
                     game_finished = False
                     current_state = State('O', 'X')
                     machine_turn = True
+                    has_winner = False
 
         # Do something
         draw_game_space(screen)
@@ -242,6 +237,6 @@ def run_game():
 
         # If this is machine turn
         if machine_turn and game_started and not game_finished:
-            machine_play()
+            machine_play(use_pruning)
 
     pygame.quit()

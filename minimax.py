@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+import time
 
 # ===== What can this class do? =====
 # From a state we can:
@@ -74,8 +75,8 @@ class State:
         if self.is_win() or self.is_draw():
             return self.get_value()
 
-        # Last turn X play, this time O play (Maxplayer)
-        if self.just_played == 'X':
+        # If this time O play (Maxplayer)
+        if self.next_to_play == 'O':
             n_max = -1e9
             children = self.get_children()
             for child in children:
@@ -83,8 +84,8 @@ class State:
                 n_max = max(n_max, score)
             return n_max
 
-        # Last turn O play, this time X play (Minplayer)
-        if self.just_played == 'O':
+        # If this time X play (Minplayer)
+        if self.next_to_play == 'X':
             n_min = 1e9
             children = self.get_children()
             for child in children:
@@ -92,11 +93,45 @@ class State:
                 n_min = min(n_min, score)
             return n_min
 
+    def alphabeta(self, alpha=-1e9, beta=1e9):
+        if self.is_win() or self.is_draw():
+            return self.get_value()
 
-matrix = np.array([['X', 'X', 'O'],
-                   ['X', 'O', 'X'],
-                   [' ', 'O', 'O']])
-state = State('O', 'X', matrix)
-children = state.get_children()
-for child in children[1:]:
-    print(child.matrix)
+        # Get the children
+        children = self.get_children()
+
+        if self.next_to_play == 'O':  # Max player
+            n_max = -1e9
+            for child in children:
+                score = child.alphabeta(alpha, beta)
+                n_max = max(n_max, score)
+                alpha = max(alpha, score)
+                if alpha >= beta:
+                    break
+            return n_max
+
+        if self.next_to_play == 'X':  # Min player
+            n_min = 1e9
+            for child in children:
+                score = child.alphabeta(alpha, beta)
+                n_min = min(n_min, score)
+                beta = min(beta, score)
+                if alpha >= beta:
+                    break
+            return n_min
+
+
+if __name__ == '__main__':
+    matrix = np.array([[' ', ' ', ' '],
+                       [' ', ' ', ' '],
+                       [' ', ' ', ' ']])
+
+    state = State('O', 'X', matrix)
+    children = state.get_children()
+    start = time.time()
+    for child in children:
+        print(child.matrix)
+        # print(child.minimax())
+        print(child.alphabeta())
+    end = time.time()
+    print(f"Takes: {end - start}")
